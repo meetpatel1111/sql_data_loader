@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Format to SQL Loader</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel and ODS parsing -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -127,10 +128,10 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                         <p id="dropZoneText" class="text-gray-500 text-center">Drag and drop your file here, or<br>
-                            <span class="text-sm">(Supported: CSV, JSON, XML, YAML, TSV, INI, TOML, SQL, HCL, PList, XLSX, XLS, PDF, Images)</span>
+                            <span class="text-sm">(Supported: CSV, JSON, XML, YAML, TSV, PSV, INI, TOML, SQL, HCL, PList, XLSX, XLS, ODS, NDJSON, JSONL, TXT, LOG, HTML, PDF, Images)</span>
                         </p>
                         <p id="fileNameDisplay" class="text-gray-700 font-medium mt-2 hidden"></p>
-                        <input type="file" id="dataFile" accept=".csv,.json,.xml,.yaml,.yml,.tsv,.ini,.toml,.sql,.hcl,.plist,.xlsx,.xls,.pdf,.png,.jpg,.jpeg" class="hidden" />
+                        <input type="file" id="dataFile" accept=".csv,.json,.xml,.yaml,.yml,.tsv,.psv,.ini,.toml,.sql,.hcl,.plist,.xlsx,.xls,.ods,.ndjson,.jsonl,.txt,.log,.html,.pdf,.png,.jpg,.jpeg" class="hidden" />
                         <button onclick="document.getElementById('dataFile').click()" class="mt-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-600 transition-colors">
                             Browse Files
                         </button>
@@ -140,7 +141,7 @@
                     <span class="bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-full text-xs font-semibold">OR</span>
                 </div>
                 <div id="pasteDataSection" class="mt-4">
-                    <textarea id="dataPasteArea" rows="8" placeholder="Paste your data here (CSV, JSON, XML, YAML, TSV, INI, TOML, SQL, HCL, PList)..." class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                    <textarea id="dataPasteArea" rows="8" placeholder="Paste your data here (CSV, JSON, XML, YAML, TSV, PSV, INI, TOML, SQL, HCL, PList, NDJSON, JSONL, TXT, LOG, HTML)..." class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
                 </div>
             </div>
             <!-- Step 3: Column Configuration (Dynamic) -->
@@ -165,6 +166,23 @@
                     <div class="mt-4 text-right">
                         <button id="ocrProcessBtn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-all duration-300">
                             Process Text
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Backend Required Modal -->
+            <div id="backendModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+                <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl max-w-lg w-full">
+                    <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Backend Required</h3>
+                    <p class="text-gray-700 dark:text-gray-300 mb-4">
+                        The file you selected is a specialized binary format (**<span id="backendFileType"></span>**) that cannot be read directly by a web browser.
+                    </p>
+                    <p class="text-gray-700 dark:text-gray-300 mb-4">
+                        These formats require a backend service with specialized libraries (like `pyarrow` for Parquet or `h5py` for HDF5) to be parsed. Please use a server-side application to process this file.
+                    </p>
+                    <div class="mt-4 text-right">
+                        <button onclick="document.getElementById('backendModal').classList.add('hidden')" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-all duration-300">
+                            Close
                         </button>
                     </div>
                 </div>
@@ -197,8 +215,21 @@
                     <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="sqlOutputSection" class="hidden">
+            <!-- Gemini AI Description Section -->
+            <div id="geminiDescriptionSection" class="mt-4 hidden">
                 <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-semibold text-gray-800">AI Data Description</h3>
+                    <button id="describeDataBtn" class="bg-purple-600 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-all duration-300">
+                        ✨ Describe Data
+                    </button>
+                </div>
+                <div id="aiDescriptionOutput" class="p-4 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700">
+                    <p class="text-center text-gray-500">Click the button above to get a description of your data.</p>
+                </div>
+            </div>
+            <!-- SQL Output Section -->
+            <div id="sqlOutputSection" class="hidden">
+                <div class="flex justify-between items-center mt-4 mb-2">
                     <h3 class="text-lg font-semibold text-gray-800">Generated SQL Script</h3>
                     <button id="copySqlBtn" class="bg-green-500 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-all duration-300">
                         Copy to Clipboard
@@ -239,6 +270,12 @@
         const ocrModal = document.getElementById('ocrModal');
         const ocrInputArea = document.getElementById('ocrInputArea');
         const ocrProcessBtn = document.getElementById('ocrProcessBtn');
+        const backendModal = document.getElementById('backendModal');
+        const backendFileType = document.getElementById('backendFileType');
+        // New Gemini API Elements
+        const geminiDescriptionSection = document.getElementById('geminiDescriptionSection');
+        const describeDataBtn = document.getElementById('describeDataBtn');
+        const aiDescriptionOutput = document.getElementById('aiDescriptionOutput');
 
         // Global variables
         let selectedFile = null;
@@ -246,7 +283,11 @@
         let parsedData = null;
         let columnHeaders = [];
         let columnTypes = [];
-
+        
+        // Gemini API Configuration
+        const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
+        const apiKey = "";
+        
         // Initial theme check
         const isDarkMode = localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (isDarkMode) {
@@ -271,6 +312,8 @@
             ocrModal.classList.add('hidden');
             handlePasteData(ocrText);
         });
+        // New Gemini API event listener
+        describeDataBtn.addEventListener('click', describeDataWithGemini);
 
         // Drag and drop events
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -317,11 +360,20 @@
             }
 
             const fileExtension = file.name.split('.').pop().toLowerCase();
-            const supportedExtensions = ['csv', 'json', 'xml', 'yaml', 'yml', 'tsv', 'ini', 'toml', 'sql', 'hcl', 'plist', 'xlsx', 'xls', 'pdf', 'png', 'jpg', 'jpeg'];
-            if (!supportedExtensions.includes(fileExtension)) {
-                logMessage('❌ **Error:** Invalid file type. Please select a supported file.', 'error');
-                resetInputState();
-                return;
+            const supportedExtensions = ['csv', 'json', 'xml', 'yaml', 'yml', 'tsv', 'psv', 'ini', 'toml', 'sql', 'hcl', 'plist', 'xlsx', 'xls', 'ods', 'ndjson', 'jsonl', 'txt', 'log', 'html', 'pdf', 'png', 'jpg', 'jpeg'];
+            const backendRequiredTypes = ['parquet', 'orc', 'feather', 'avro', 'dump', 'bak', 'mdf', 'ldf', 'db', 'sqlite', 'h5', 'mat', 'arff', 'nc', 'dta', 'sav', 'por', 'sas7bdat', 'rds', 'geojson', 'shp', 'dicom', 'tfrecord', 'mp3', 'wav', 'flac', 'aac', 'ogg', 'mp4', 'avi', 'mov', 'mkv', 'delta'];
+
+            if (!supportedExtensions.includes(fileExtension) && !backendRequiredTypes.includes(fileExtension)) {
+                 logMessage('❌ **Error:** Invalid file type. Please select a supported file.', 'error');
+                 resetInputState();
+                 return;
+            }
+            
+            if (backendRequiredTypes.includes(fileExtension)) {
+                 backendFileType.textContent = fileExtension.toUpperCase();
+                 backendModal.classList.remove('hidden');
+                 resetInputState();
+                 return;
             }
 
             selectedFile = file;
@@ -338,9 +390,9 @@
             reader.onload = function(event) {
                 const rawData = event.target.result;
                 // Special handling for binary file types
-                if (fileType === 'xlsx' || fileType === 'xls') {
+                if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'ods') {
                     parseExcel(rawData);
-                } else if (fileType === 'pdf' || fileType === 'png' || fileType === 'jpg' || fileType === 'jpeg') {
+                } else if (fileType === 'pdf' || ['png', 'jpg', 'jpeg'].includes(fileType)) {
                     ocrInputArea.value = '';
                     ocrModal.classList.remove('hidden');
                 } else {
@@ -349,7 +401,7 @@
             };
 
             // Read as ArrayBuffer for binary files, otherwise read as text
-            if (fileType === 'xlsx' || fileType === 'xls') {
+            if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'ods') {
                  reader.readAsArrayBuffer(selectedFile);
             } else {
                  reader.readAsText(selectedFile);
@@ -364,25 +416,32 @@
             }
 
             // Simple check to guess file type from pasted content
-            if (data.trim().startsWith('{') || data.trim().startsWith('[')) {
-                fileType = 'json';
-            } else if (data.trim().startsWith('<')) {
-                if (data.includes('DOCTYPE plist')) {
+            const trimmedData = data.trim();
+            if (trimmedData.startsWith('{') || trimmedData.startsWith('[')) {
+                if (trimmedData.split(/\r?\n/).length > 1) {
+                    fileType = 'ndjson';
+                } else {
+                    fileType = 'json';
+                }
+            } else if (trimmedData.startsWith('<')) {
+                if (trimmedData.includes('DOCTYPE plist')) {
                     fileType = 'plist';
                 } else {
                     fileType = 'xml';
                 }
-            } else if (data.includes('\t')) {
+            } else if (trimmedData.includes('\t')) {
                 fileType = 'tsv';
-            } else if (data.includes(':') && !data.includes('=')) {
+            } else if (trimmedData.includes('|')) {
+                fileType = 'psv';
+            } else if (trimmedData.includes(':') && !trimmedData.includes('=')) {
                 fileType = 'yaml';
-            } else if (data.includes('=')) {
+            } else if (trimmedData.includes('=')) {
                 fileType = 'ini';
-            } else if (data.includes('=') && data.includes('[')) {
+            } else if (trimmedData.includes('=') && trimmedData.includes('[')) {
                 fileType = 'toml';
-            } else if (data.toLowerCase().startsWith('insert into') || data.toLowerCase().startsWith('select')) {
+            } else if (trimmedData.toLowerCase().startsWith('insert into') || trimmedData.toLowerCase().startsWith('select') || trimmedData.toLowerCase().startsWith('create')) {
                 fileType = 'sql';
-            } else if (data.includes('{')) {
+            } else if (trimmedData.includes('{')) {
                 fileType = 'hcl';
             } else {
                 fileType = 'csv';
@@ -407,8 +466,15 @@
                     case 'tsv':
                         dataToProcess = parseDelimitedData(rawData, '\t');
                         break;
+                    case 'psv':
+                        dataToProcess = parseDelimitedData(rawData, '|');
+                        break;
                     case 'json':
                         dataToProcess = parseJSON(rawData);
+                        break;
+                    case 'ndjson':
+                    case 'jsonl':
+                        dataToProcess = parseNDJSON(rawData);
                         break;
                     case 'xml':
                         dataToProcess = parseXML(rawData);
@@ -432,6 +498,11 @@
                     case 'plist':
                         dataToProcess = parsePList(rawData);
                         break;
+                    case 'txt':
+                    case 'log':
+                    case 'html':
+                        dataToProcess = parseText(rawData);
+                        break;
                     default:
                         throw new Error("Unsupported file type.");
                 }
@@ -443,6 +514,9 @@
                 parsedData = dataToProcess;
                 logMessage(`✅ Parsed ${parsedData.length} data rows.`);
                 parseColumnsAndSuggestTypes(parsedData);
+                geminiDescriptionSection.classList.remove('hidden');
+                sqlOutputSection.classList.add('hidden');
+                aiDescriptionOutput.innerHTML = `<p class="text-center text-gray-500">Click the button above to get a description of your data.</p>`;
             } catch (e) {
                 logMessage(`❌ **Parsing Error:** ${e.message}`, 'error');
                 resetInputState();
@@ -461,6 +535,9 @@
                 parsedData = json;
                 logMessage(`✅ Parsed ${parsedData.length} rows from Excel sheet "${firstSheetName}".`, 'success');
                 parseColumnsAndSuggestTypes(parsedData);
+                geminiDescriptionSection.classList.remove('hidden');
+                sqlOutputSection.classList.add('hidden');
+                aiDescriptionOutput.innerHTML = `<p class="text-center text-gray-500">Click the button above to get a description of your data.</p>`;
             } catch (e) {
                 logMessage(`❌ **Parsing Error (Excel):** ${e.message}`, 'error');
                 resetInputState();
@@ -493,6 +570,17 @@
                 return [obj];
             }
             throw new Error("JSON data must be a single object or an array of objects.");
+        }
+
+        function parseNDJSON(data) {
+            const lines = data.split(/\r?\n/).filter(line => line.trim() !== '');
+            return lines.map(line => {
+                try {
+                    return JSON.parse(line);
+                } catch (e) {
+                    throw new Error(`Invalid JSON on line: ${line}`);
+                }
+            });
         }
 
         function parseXML(data) {
@@ -703,6 +791,11 @@
             return result;
         }
 
+        function parseText(data) {
+            const lines = data.split(/\r?\n/).filter(line => line.trim() !== '');
+            return lines.map(line => ({ 'text_content': line.trim() }));
+        }
+
 
         function resetInputState() {
             selectedFile = null;
@@ -713,6 +806,7 @@
             fileNameDisplay.classList.add('hidden');
             fileNameDisplay.textContent = '';
             columnConfigSection.classList.add('hidden');
+            geminiDescriptionSection.classList.add('hidden');
         }
 
         function parseColumnsAndSuggestTypes(data) {
@@ -936,6 +1030,73 @@
             }
             document.body.removeChild(textArea);
         }
+
+        async function describeDataWithGemini() {
+            if (!parsedData) {
+                aiDescriptionOutput.innerHTML = `<p class="text-red-500 text-center">No data found. Please load data first.</p>`;
+                return;
+            }
+            
+            describeDataBtn.textContent = 'Generating...';
+            describeDataBtn.disabled = true;
+
+            const sampleSize = Math.min(parsedData.length, 5);
+            const sampleData = JSON.stringify(parsedData.slice(0, sampleSize), null, 2);
+            
+            const prompt = `You are a data analyst. Analyze the following JSON data and provide a concise, professional, and friendly description. Highlight key columns and what the dataset might be about based on the column names and sample values. Do not start with "This JSON data...". Keep the description to two or three sentences.
+            
+            Data Sample:\n\`\`\`json\n${sampleData}\n\`\`\`
+            
+            Response must be a JSON object with a single key, "description", containing the generated text.`;
+
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "description": {
+                                "type": "STRING"
+                            }
+                        }
+                    }
+                }
+            };
+            
+            try {
+                const response = await fetch(GEMINI_API_URL + apiKey, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    const parsedJson = JSON.parse(jsonText);
+                    aiDescriptionOutput.innerHTML = `<p>${parsedJson.description}</p>`;
+                } else {
+                    throw new Error("API response was empty or malformed.");
+                }
+            } catch (error) {
+                console.error('Error fetching data from Gemini API:', error);
+                aiDescriptionOutput.innerHTML = `<p class="text-red-500">Error generating description. Please try again later.</p>`;
+            } finally {
+                describeDataBtn.textContent = '✨ Describe Data';
+                describeDataBtn.disabled = false;
+            }
+        }
+
     </script>
 </body>
 </html>
