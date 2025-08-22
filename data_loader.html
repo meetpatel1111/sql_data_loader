@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Format to SQL Loader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.dark {
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        body.dark .bg-white {
+            background-color: #2d3748;
+        }
+        body.dark .text-gray-800 {
+            color: #e2e8f0;
+        }
+        body.dark .text-gray-900 {
+            color: #f7fafc;
+        }
+        body.dark .text-gray-700 {
+            color: #cbd5e0;
+        }
+        body.dark .text-gray-600 {
+            color: #a0aec0;
+        }
+        body.dark .bg-gray-100 {
+            background-color: #1a202c;
+        }
+        body.dark input, body.dark textarea, body.dark select {
+            background-color: #4a5568;
+            border-color: #4a5568;
+            color: #e2e8f0;
+        }
+        body.dark .input-group input {
+            color: #e2e8f0;
+        }
+        body.dark .bg-gray-50 {
+            background-color: #2d3748;
+        }
+        body.dark .border-b {
+            border-bottom-color: #4a5568;
+        }
+        body.dark textarea {
+            background-color: #1a202c;
+        }
+        body.dark .bg-gray-200 {
+            background-color: #4a5568;
+        }
+        body.dark .border-gray-300 {
+            border-color: #4a5568;
+        }
+        /* Custom scrollbar */
+        textarea::-webkit-scrollbar { width: 8px; }
+        textarea::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        textarea::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        textarea::-webkit-scrollbar-thumb:hover { background: #555; }
+        .dark textarea::-webkit-scrollbar-track { background: #2d3748; }
+        .dark textarea::-webkit-scrollbar-thumb { background: #718096; }
+        .dark textarea::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+        
+        .input-group { position: relative; }
+        .input-group input { padding-right: 3rem; }
+        .input-group .toggle-visibility { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); cursor: pointer; }
+
+        /* Drag and Drop Zone */
+        .drop-zone {
+            border: 2px dashed #9ca3af;
+            border-radius: 1rem;
+            text-align: center;
+            padding: 2rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .drop-zone.dragover {
+            background-color: #e5e7eb;
+        }
+        .dark .drop-zone.dragover {
+            background-color: #4a5568;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Multi-Format to SQL Loader</h1>
+            <button id="themeToggle" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                <svg id="sunIcon" class="w-6 h-6 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <svg id="moonIcon" class="w-6 h-6 text-gray-700 dark:text-gray-300 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+            </button>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <!-- Step 1: Database Details -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold border-b pb-2 mb-4 text-gray-700">Step 1: Database Connection Details</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="dbHost" placeholder="Host (e.g., localhost)" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value="your_host_name">
+                    <input type="number" id="dbPort" placeholder="Port (e.g., 3306)" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value="3306">
+                    <input type="text" id="dbUser" placeholder="User (e.g., root)" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value="your_user_name">
+                    <div class="input-group">
+                        <input type="password" id="dbPassword" placeholder="Password" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value="your_password">
+                        <span class="toggle-visibility text-gray-500" onclick="togglePasswordVisibility()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
+                    </div>
+                    <input type="text" id="dbName" placeholder="Database Name (e.g., testdb)" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value="your_database_name">
+                    <input type="text" id="tableName" placeholder="Table Name (e.g., ncr_ride_bookings)" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value="your_table_name">
+                </div>
+            </div>
+            <!-- Step 2: Upload CSV with Drag-and-Drop or Paste -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold border-b pb-2 mb-4 text-gray-700">Step 2: Upload or Paste Data</h2>
+                <div id="fileUploadSection">
+                    <div id="dropZone" class="drop-zone flex flex-col items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p id="dropZoneText" class="text-gray-500 text-center">Drag and drop your file here, or<br>
+                            <span class="text-sm">(Supported: CSV, JSON, XML, YAML, TSV, INI, TOML, SQL, HCL, PList, XLSX, XLS, PDF, Images)</span>
+                        </p>
+                        <p id="fileNameDisplay" class="text-gray-700 font-medium mt-2 hidden"></p>
+                        <input type="file" id="dataFile" accept=".csv,.json,.xml,.yaml,.yml,.tsv,.ini,.toml,.sql,.hcl,.plist,.xlsx,.xls,.pdf,.png,.jpg,.jpeg" class="hidden" />
+                        <button onclick="document.getElementById('dataFile').click()" class="mt-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-600 transition-colors">
+                            Browse Files
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4 text-center text-gray-500">
+                    <span class="bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-full text-xs font-semibold">OR</span>
+                </div>
+                <div id="pasteDataSection" class="mt-4">
+                    <textarea id="dataPasteArea" rows="8" placeholder="Paste your data here (CSV, JSON, XML, YAML, TSV, INI, TOML, SQL, HCL, PList)..." class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                </div>
+            </div>
+            <!-- Step 3: Column Configuration (Dynamic) -->
+            <div id="columnConfigSection" class="mb-6 hidden">
+                <h2 class="text-xl font-semibold border-b pb-2 mb-4 text-gray-700">Step 3: Configure Columns</h2>
+                <div id="columnEditor" class="space-y-4">
+                    <!-- Column inputs will be dynamically added here -->
+                </div>
+                <div class="flex items-center mt-4">
+                    <input type="checkbox" id="generateCreateStatement" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="generateCreateStatement" class="ml-2 text-sm text-gray-700">Generate `CREATE TABLE` statement</label>
+                </div>
+            </div>
+            <!-- OCR Simulation Modal -->
+            <div id="ocrModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+                <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl max-w-lg w-full">
+                    <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Simulating OCR</h3>
+                    <p class="text-gray-700 dark:text-gray-300 mb-4">
+                        A real browser cannot perform Optical Character Recognition (OCR). Please paste the text you want to extract from the **PDF** or **image** file below, and the tool will parse it as if it were OCR output.
+                    </p>
+                    <textarea id="ocrInputArea" rows="10" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-900 dark:text-gray-100 dark:bg-gray-700" placeholder="Paste your text here..."></textarea>
+                    <div class="mt-4 text-right">
+                        <button id="ocrProcessBtn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-all duration-300">
+                            Process Text
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Action Buttons -->
+            <div class="text-center space-y-4 md:space-y-0 md:space-x-4">
+                <div class="flex items-center justify-center mb-4">
+                    <input type="checkbox" id="trustedModeToggle" class="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    <label for="trustedModeToggle" class="ml-2 text-sm text-gray-700 font-medium">Trusted Mode</label>
+                    <span class="ml-2 text-xs text-gray-500">(Not Recommended)</span>
+                </div>
+                <button id="generateScriptBtn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 shadow-md focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    Generate SQL Script
+                </button>
+                <button id="directLoadBtn" class="bg-red-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-105 shadow-md focus:outline-none focus:ring-4 focus:ring-red-300 hidden">
+                    Load Data Directly
+                </button>
+            </div>
+        </div>
+        <!-- Status and Output -->
+        <div id="statusSection" class="mt-8 bg-white p-6 rounded-2xl shadow-lg hidden">
+            <h2 class="text-xl font-semibold border-b pb-2 mb-4 text-gray-700">Step 4: Results</h2>
+            <div id="log" class="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg mb-4 max-h-40 overflow-y-auto"></div>
+            <div id="progressContainer" class="mb-4 hidden">
+                <div class="flex justify-between mb-1">
+                    <span id="progressLabel" class="text-base font-medium text-blue-700">Processing...</span>
+                    <span id="progressPercentage" class="text-sm font-medium text-blue-700">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div id="sqlOutputSection" class="hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-semibold text-gray-800">Generated SQL Script</h3>
+                    <button id="copySqlBtn" class="bg-green-500 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-all duration-300">
+                        Copy to Clipboard
+                    </button>
+                </div>
+                <textarea id="sqlOutput" rows="15" class="w-full p-3 border rounded-lg bg-gray-900 text-green-300 font-mono text-sm" readonly></textarea>
+                <p class="text-xs text-gray-500 mt-2">
+                    <strong>Security Note:</strong> This script is generated in your browser. No data is sent to any server. Copy the script and run it in your own secure database environment.
+                </p>
+            </div>
+        </div>
+    </div>
+    <script>
+        // DOM Elements
+        const dataFile = document.getElementById('dataFile');
+        const dataPasteArea = document.getElementById('dataPasteArea');
+        const generateScriptBtn = document.getElementById('generateScriptBtn');
+        const directLoadBtn = document.getElementById('directLoadBtn');
+        const trustedModeToggle = document.getElementById('trustedModeToggle');
+        const statusSection = document.getElementById('statusSection');
+        const log = document.getElementById('log');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressContainer = document.getElementById('progressContainer');
+        const sqlOutputSection = document.getElementById('sqlOutputSection');
+        const sqlOutput = document.getElementById('sqlOutput');
+        const copySqlBtn = document.getElementById('copySqlBtn');
+        const dropZone = document.getElementById('dropZone');
+        const themeToggle = document.getElementById('themeToggle');
+        const sunIcon = document.getElementById('sunIcon');
+        const moonIcon = document.getElementById('moonIcon');
+        const dropZoneText = document.getElementById('dropZoneText');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const columnConfigSection = document.getElementById('columnConfigSection');
+        const columnEditor = document.getElementById('columnEditor');
+        const generateCreateStatement = document.getElementById('generateCreateStatement');
+        const ocrModal = document.getElementById('ocrModal');
+        const ocrInputArea = document.getElementById('ocrInputArea');
+        const ocrProcessBtn = document.getElementById('ocrProcessBtn');
+
+        // Global variables
+        let selectedFile = null;
+        let fileType = null;
+        let parsedData = null;
+        let columnHeaders = [];
+        let columnTypes = [];
+
+        // Initial theme check
+        const isDarkMode = localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDarkMode) {
+            document.body.classList.add('dark');
+            sunIcon.classList.add('hidden');
+            moonIcon.classList.remove('hidden');
+        } else {
+            sunIcon.classList.remove('hidden');
+            moonIcon.classList.add('hidden');
+        }
+
+        // Event Listeners
+        trustedModeToggle.addEventListener('change', toggleTrustedModeUI);
+        generateScriptBtn.addEventListener('click', () => processData('generate'));
+        directLoadBtn.addEventListener('click', () => processData('direct'));
+        copySqlBtn.addEventListener('click', copySqlToClipboard);
+        themeToggle.addEventListener('click', toggleTheme);
+        dataFile.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        dataPasteArea.addEventListener('input', () => handlePasteData(dataPasteArea.value));
+        ocrProcessBtn.addEventListener('click', () => {
+            const ocrText = ocrInputArea.value;
+            ocrModal.classList.add('hidden');
+            handlePasteData(ocrText);
+        });
+
+        // Drag and drop events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+        dropZone.addEventListener('drop', handleDrop, false);
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleDrop(e) {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function toggleTrustedModeUI() {
+            if (trustedModeToggle.checked) {
+                generateScriptBtn.classList.add('hidden');
+                directLoadBtn.classList.remove('hidden');
+                logMessage('⚠ **Trusted Mode Activated:** This mode attempts a direct database connection. This is highly insecure and requires a backend server to function.', 'warning');
+            } else {
+                generateScriptBtn.classList.remove('hidden');
+                directLoadBtn.classList.add('hidden');
+                logMessage('🔒 **Non-Trusted Mode Activated:** This mode safely generates a local SQL script for you to run yourself.', 'success');
+            }
+        }
+
+        function handleFile(file) {
+            if (!file) {
+                logMessage('❌ **Error:** No file was selected.', 'error');
+                resetInputState();
+                return;
+            }
+
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+            const supportedExtensions = ['csv', 'json', 'xml', 'yaml', 'yml', 'tsv', 'ini', 'toml', 'sql', 'hcl', 'plist', 'xlsx', 'xls', 'pdf', 'png', 'jpg', 'jpeg'];
+            if (!supportedExtensions.includes(fileExtension)) {
+                logMessage('❌ **Error:** Invalid file type. Please select a supported file.', 'error');
+                resetInputState();
+                return;
+            }
+
+            selectedFile = file;
+            fileType = fileExtension;
+            dataPasteArea.value = '';
+            
+            logMessage(`✅ File "${file.name}" ready to be processed. (Type: ${fileType.toUpperCase()})`, 'success');
+            
+            dropZoneText.classList.add('hidden');
+            fileNameDisplay.classList.remove('hidden');
+            fileNameDisplay.textContent = `Selected: ${file.name}`;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const rawData = event.target.result;
+                // Special handling for binary file types
+                if (fileType === 'xlsx' || fileType === 'xls') {
+                    parseExcel(rawData);
+                } else if (fileType === 'pdf' || fileType === 'png' || fileType === 'jpg' || fileType === 'jpeg') {
+                    ocrInputArea.value = '';
+                    ocrModal.classList.remove('hidden');
+                } else {
+                    parseData(fileType, rawData);
+                }
+            };
+
+            // Read as ArrayBuffer for binary files, otherwise read as text
+            if (fileType === 'xlsx' || fileType === 'xls') {
+                 reader.readAsArrayBuffer(selectedFile);
+            } else {
+                 reader.readAsText(selectedFile);
+            }
+        }
+
+        function handlePasteData(data) {
+            if (data.trim() === '') {
+                logMessage('❌ **Error:** No data was pasted.', 'error');
+                resetInputState();
+                return;
+            }
+
+            // Simple check to guess file type from pasted content
+            if (data.trim().startsWith('{') || data.trim().startsWith('[')) {
+                fileType = 'json';
+            } else if (data.trim().startsWith('<')) {
+                if (data.includes('DOCTYPE plist')) {
+                    fileType = 'plist';
+                } else {
+                    fileType = 'xml';
+                }
+            } else if (data.includes('\t')) {
+                fileType = 'tsv';
+            } else if (data.includes(':') && !data.includes('=')) {
+                fileType = 'yaml';
+            } else if (data.includes('=')) {
+                fileType = 'ini';
+            } else if (data.includes('=') && data.includes('[')) {
+                fileType = 'toml';
+            } else if (data.toLowerCase().startsWith('insert into') || data.toLowerCase().startsWith('select')) {
+                fileType = 'sql';
+            } else if (data.includes('{')) {
+                fileType = 'hcl';
+            } else {
+                fileType = 'csv';
+            }
+            
+            selectedFile = null;
+            
+            dropZoneText.classList.remove('hidden');
+            fileNameDisplay.classList.add('hidden');
+            
+            logMessage(`✅ Data pasted. Guessed format: ${fileType.toUpperCase()}`, 'success');
+            parseData(fileType, data);
+        }
+
+        function parseData(type, rawData) {
+            try {
+                let dataToProcess;
+                switch (type) {
+                    case 'csv':
+                        dataToProcess = parseDelimitedData(rawData, ',');
+                        break;
+                    case 'tsv':
+                        dataToProcess = parseDelimitedData(rawData, '\t');
+                        break;
+                    case 'json':
+                        dataToProcess = parseJSON(rawData);
+                        break;
+                    case 'xml':
+                        dataToProcess = parseXML(rawData);
+                        break;
+                    case 'yaml':
+                    case 'yml':
+                        dataToProcess = parseYAML(rawData);
+                        break;
+                    case 'ini':
+                        dataToProcess = parseINI(rawData);
+                        break;
+                    case 'toml':
+                        dataToProcess = parseTOML(rawData);
+                        break;
+                    case 'sql':
+                        dataToProcess = parseSQL(rawData);
+                        break;
+                    case 'hcl':
+                        dataToProcess = parseHCL(rawData);
+                        break;
+                    case 'plist':
+                        dataToProcess = parsePList(rawData);
+                        break;
+                    default:
+                        throw new Error("Unsupported file type.");
+                }
+
+                if (!dataToProcess || dataToProcess.length === 0) {
+                    throw new Error("Parsed data is empty. Please check your file/data format.");
+                }
+                
+                parsedData = dataToProcess;
+                logMessage(`✅ Parsed ${parsedData.length} data rows.`);
+                parseColumnsAndSuggestTypes(parsedData);
+            } catch (e) {
+                logMessage(`❌ **Parsing Error:** ${e.message}`, 'error');
+                resetInputState();
+            }
+        }
+
+        function parseExcel(data) {
+            try {
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                if (json.length === 0) {
+                    throw new Error("Excel sheet is empty or malformed.");
+                }
+                parsedData = json;
+                logMessage(`✅ Parsed ${parsedData.length} rows from Excel sheet "${firstSheetName}".`, 'success');
+                parseColumnsAndSuggestTypes(parsedData);
+            } catch (e) {
+                logMessage(`❌ **Parsing Error (Excel):** ${e.message}`, 'error');
+                resetInputState();
+            }
+        }
+        
+        function parseDelimitedData(data, delimiter) {
+            const lines = data.split(/\r\n|\r|\n/).filter(line => line.trim() !== '');
+            if (lines.length < 2) {
+                throw new Error("Delimited data is empty or has no data rows.");
+            }
+            const headers = lines[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
+            const rows = lines.slice(1);
+            return rows.map(row => {
+                const values = row.split(delimiter).map(v => v.trim().replace(/"/g, ''));
+                let obj = {};
+                headers.forEach((header, i) => {
+                    obj[header] = values[i] || null;
+                });
+                return obj;
+            });
+        }
+        
+        function parseJSON(data) {
+            const obj = JSON.parse(data);
+            if (Array.isArray(obj)) {
+                return obj;
+            }
+            if (typeof obj === 'object' && obj !== null) {
+                return [obj];
+            }
+            throw new Error("JSON data must be a single object or an array of objects.");
+        }
+
+        function parseXML(data) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(data, "application/xml");
+            if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                throw new Error("XML parsing error. Please check your XML syntax.");
+            }
+            const items = xmlDoc.documentElement.children;
+            const result = [];
+            for (const item of items) {
+                const obj = {};
+                for (const child of item.children) {
+                    obj[child.tagName] = child.textContent;
+                }
+                result.push(obj);
+            }
+            if (result.length === 0) {
+                throw new Error("XML data must contain a root element with a list of child objects.");
+            }
+            return result;
+        }
+
+        function parseYAML(data) {
+            const lines = data.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
+            if (lines.length === 0) {
+                throw new Error("YAML data is empty or malformed.");
+            }
+            let result = [];
+            let currentObject = {};
+            
+            lines.forEach(line => {
+                const match = line.match(/^(\s*)- (\w+): (.*)/);
+                if (match) {
+                    if (Object.keys(currentObject).length > 0) {
+                        result.push(currentObject);
+                    }
+                    currentObject = { [match[2]]: match[3].trim().replace(/'/g, "") };
+                } else {
+                    const subMatch = line.match(/^(\s*)(\w+):\s*(.*)/);
+                    if (subMatch && subMatch[1].length > 0) {
+                         const key = subMatch[2];
+                         let value = subMatch[3].trim().replace(/'/g, "");
+                         currentObject[key] = value;
+                    }
+                }
+            });
+            if (Object.keys(currentObject).length > 0) {
+                result.push(currentObject);
+            }
+            
+            if (result.length === 0) {
+                throw new Error("YAML data must be a list of objects.");
+            }
+            return result;
+        }
+
+        function parseINI(data) {
+            const lines = data.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith(';'));
+            const result = [];
+            let currentSection = {};
+            
+            lines.forEach(line => {
+                const sectionMatch = line.match(/^\[(.*?)\]$/);
+                if (sectionMatch) {
+                    if (Object.keys(currentSection).length > 0) {
+                        result.push(currentSection);
+                        currentSection = {};
+                    }
+                    currentSection.section = sectionMatch[1].trim();
+                } else {
+                    const keyValuePair = line.match(/^\s*([^=]+?)\s*=(.*)$/);
+                    if (keyValuePair) {
+                        const key = keyValuePair[1].trim();
+                        const value = keyValuePair[2].trim();
+                        currentSection[key] = value;
+                    }
+                }
+            });
+            if (Object.keys(currentSection).length > 0) {
+                result.push(currentSection);
+            }
+
+            if (result.length === 0) {
+                throw new Error("INI data is empty or malformed.");
+            }
+            return result;
+        }
+
+        function parseTOML(data) {
+            const lines = data.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
+            const result = [];
+            let currentSection = {};
+
+            lines.forEach(line => {
+                const sectionMatch = line.match(/^\[(.*?)\]$/);
+                if (sectionMatch) {
+                    if (Object.keys(currentSection).length > 0) {
+                        result.push(currentSection);
+                        currentSection = {};
+                    }
+                    currentSection.section = sectionMatch[1].trim();
+                } else {
+                    const keyValuePair = line.match(/^\s*([^=]+?)\s*=\s*(.*)$/);
+                    if (keyValuePair) {
+                        const key = keyValuePair[1].trim();
+                        let value = keyValuePair[2].trim();
+                        if (value.startsWith('"') && value.endsWith('"')) {
+                            value = value.substring(1, value.length - 1);
+                        }
+                        currentSection[key] = value;
+                    }
+                }
+            });
+            if (Object.keys(currentSection).length > 0) {
+                result.push(currentSection);
+            }
+
+            if (result.length === 0) {
+                throw new Error("TOML data is empty or malformed.");
+            }
+            return result;
+        }
+        
+        function parseSQL(data) {
+            const lines = data.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '' && !line.startsWith('--') && !line.startsWith('/*'));
+            
+            const result = lines.map(line => {
+                const value = line.endsWith(';') ? line.slice(0, -1) : line;
+                return { value: value };
+            });
+
+            if (result.length === 0) {
+                throw new Error("SQL data is empty or malformed.");
+            }
+            return result;
+        }
+
+        function parseHCL(data) {
+            const result = [];
+            const lines = data.split(/\r?\n/);
+            let currentObject = {};
+            let isBlock = false;
+            
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('resource') || trimmedLine.startsWith('data') || trimmedLine.startsWith('variable')) {
+                    if (Object.keys(currentObject).length > 0) {
+                        result.push(currentObject);
+                        currentObject = {};
+                    }
+                    const parts = trimmedLine.split(/\s+/);
+                    currentObject.type = parts[0];
+                    currentObject.name = parts[1].replace(/"/g, '');
+                    isBlock = true;
+                } else if (trimmedLine === '{') {
+                    // Do nothing, beginning of a block
+                } else if (trimmedLine === '}') {
+                    // End of block
+                    isBlock = false;
+                } else if (trimmedLine.includes('=')) {
+                    const [key, value] = trimmedLine.split('=').map(s => s.trim().replace(/"/g, ''));
+                    currentObject[key] = value;
+                }
+            });
+
+            if (Object.keys(currentObject).length > 0) {
+                result.push(currentObject);
+            }
+
+            if (result.length === 0) {
+                throw new Error("HCL data is empty or malformed.");
+            }
+            return result;
+        }
+        
+        function parsePList(data) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(data, "application/xml");
+            if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                throw new Error("PList parsing error. Please check your XML syntax.");
+            }
+            const dicts = xmlDoc.querySelectorAll('dict');
+            if (dicts.length === 0) {
+                throw new Error("PList data must contain at least one <dict> element.");
+            }
+            const result = [];
+            dicts.forEach(dict => {
+                const obj = {};
+                const children = dict.children;
+                for (let i = 0; i < children.length; i += 2) {
+                    const keyEl = children[i];
+                    const valueEl = children[i + 1];
+                    if (keyEl && keyEl.tagName === 'key' && valueEl) {
+                        const key = keyEl.textContent;
+                        let value = valueEl.textContent;
+                        // Handle specific value types
+                        if (valueEl.tagName === 'integer' || valueEl.tagName === 'real') {
+                            value = Number(value);
+                        } else if (valueEl.tagName === 'true' || valueEl.tagName === 'false') {
+                            value = valueEl.tagName === 'true';
+                        }
+                        obj[key] = value;
+                    }
+                }
+                result.push(obj);
+            });
+            return result;
+        }
+
+
+        function resetInputState() {
+            selectedFile = null;
+            parsedData = null;
+            columnHeaders = [];
+            columnTypes = [];
+            dropZoneText.classList.remove('hidden');
+            fileNameDisplay.classList.add('hidden');
+            fileNameDisplay.textContent = '';
+            columnConfigSection.classList.add('hidden');
+        }
+
+        function parseColumnsAndSuggestTypes(data) {
+            const allKeys = new Set();
+            data.slice(0, 50).forEach(row => {
+                Object.keys(row).forEach(key => allKeys.add(key));
+            });
+            const headers = Array.from(allKeys);
+            
+            const sampleRow = data[0];
+            columnTypes = headers.map(header => guessDataType(sampleRow[header]));
+            columnHeaders = headers;
+            
+            renderColumnEditor();
+            columnConfigSection.classList.remove('hidden');
+        }
+
+        function renderColumnEditor() {
+            columnEditor.innerHTML = '';
+            columnHeaders.forEach((header, index) => {
+                const colType = columnTypes[index];
+                const inputGroup = document.createElement('div');
+                inputGroup.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 border-b pb-4';
+                inputGroup.innerHTML = `
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Column Name</label>
+                        <input type="text" value="${header}" data-index="${index}" class="column-name mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Data Type</label>
+                        <select data-index="${index}" class="column-type mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2">
+                            <option value="VARCHAR(255)" ${colType.startsWith('VARCHAR') ? 'selected' : ''}>VARCHAR(255)</option>
+                            <option value="INT" ${colType === 'INT' ? 'selected' : ''}>INT</option>
+                            <option value="FLOAT" ${colType === 'FLOAT' ? 'selected' : ''}>FLOAT</option>
+                            <option value="DATETIME" ${colType === 'DATETIME' ? 'selected' : ''}>DATETIME</option>
+                            <option value="BOOLEAN" ${colType === 'BOOLEAN' ? 'selected' : ''}>BOOLEAN</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <p class="text-xs text-gray-500 mt-6">Suggested: ${colType}</p>
+                    </div>
+                `;
+                columnEditor.appendChild(inputGroup);
+            });
+        }
+        
+        function guessDataType(value) {
+            if (value === null || value === '' || typeof value === 'undefined') return 'VARCHAR(255)';
+            if (typeof value === 'boolean') return 'BOOLEAN';
+            if (!isNaN(value) && !String(value).includes('.')) return 'INT';
+            if (!isNaN(value) && String(value).includes('.')) return 'FLOAT';
+            const date = new Date(value);
+            if (!isNaN(date.getTime()) && String(value).length > 5 && String(value).includes('-')) return 'DATETIME';
+            return 'VARCHAR(255)';
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('dbPassword');
+            const icon = document.querySelector('.toggle-visibility svg');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+            } else {
+                passwordInput.type = 'password';
+                icon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            const isDark = document.body.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            sunIcon.classList.toggle('hidden', isDark);
+            moonIcon.classList.toggle('hidden', !isDark);
+        }
+
+        function logMessage(message, type = 'info') {
+            const colors = {
+                info: 'text-gray-600',
+                success: 'text-green-600',
+                error: 'text-red-500',
+                warning: 'text-yellow-700 font-bold'
+            };
+            const msgElement = document.createElement('p');
+            msgElement.innerHTML = message;
+            msgElement.classList.add(colors[type] || colors.info);
+            log.appendChild(msgElement);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateProgress(value, label = "Processing...") {
+            const percentage = Math.round(value);
+            progressBar.style.width = `${percentage}%`;
+            progressPercentage.textContent = `${percentage}%`;
+            progressLabel.textContent = label;
+        }
+
+        function resetUI() {
+            statusSection.classList.remove('hidden');
+            sqlOutputSection.classList.add('hidden');
+            progressContainer.classList.remove('hidden');
+            log.innerHTML = '';
+            updateProgress(0);
+        }
+
+        function processData(mode) {
+            resetUI();
+            if (!parsedData) {
+                logMessage('❌ **Error:** Please upload a file or paste data first.', 'error');
+                return;
+            }
+            if (mode === 'direct') {
+                showDirectLoadWarning();
+            } else {
+                generateSqlScript(parsedData);
+            }
+        }
+
+        function showDirectLoadWarning() {
+            progressContainer.classList.add('hidden');
+            logMessage('🛑 **SECURITY AND TECHNICAL WARNING**', 'error');
+            logMessage('Connecting directly to a database from a web browser is **not possible** and **highly insecure** for the following reasons:', 'warning');
+            logMessage('1. **Credential Exposure:** Your database password would be visible in the browser\'s code, accessible to anyone.', 'warning');
+            logMessage('2. **Browser Security:** Browsers block direct connections to database ports (like 3306) as a security measure.', 'warning');
+            logMessage('**Solution:** A secure backend (server-side application) is required to handle database connections safely. The browser should only communicate with your secure server, not the database itself.', 'info');
+            logMessage('👉 Please use the **"Generate SQL Script"** option. This is the industry-standard, secure method.', 'success');
+        }
+
+        function generateSqlScript(data) {
+            updateProgress(5, "Parsing and validating...");
+            
+            const headerInputs = Array.from(columnEditor.querySelectorAll('.column-name'));
+            const typeInputs = Array.from(columnEditor.querySelectorAll('.column-type'));
+            
+            const userHeaders = headerInputs.map(input => `\`${input.value.trim()}\``);
+            const dataTypes = typeInputs.map(select => select.value.trim());
+
+            if (userHeaders.length === 0) {
+                logMessage('❌ **Error:** No headers detected. Please check your data.', 'error');
+                return;
+            }
+            
+            logMessage(`Found ${data.length} data rows.`);
+            updateProgress(10, "Generating SQL...");
+
+            const dbName = document.getElementById('dbName').value.trim();
+            const tableNameVal = `\`${document.getElementById('tableName').value.trim()}\``;
+            if (!tableNameVal || tableNameVal === '``' || tableNameVal === '`your_table_name`') {
+                logMessage('❌ **Error:** Please enter a Table Name before generating the script.', 'error');
+                return;
+            }
+
+            let allSql = `/* Generated by Multi-Format to SQL Loader at ${new Date().toISOString()} */\n\n`;
+            if (dbName && dbName !== 'your_database_name') allSql += `USE \`${dbName}\`;\n\n`;
+
+            if (generateCreateStatement.checked) {
+                const createTableStatement = generateCreateTable(tableNameVal, userHeaders, dataTypes);
+                allSql += createTableStatement + "\n\n";
+            }
+
+            const BATCH_SIZE = 500;
+            let valueClauses = [];
+
+            data.forEach((row, i) => {
+                const values = userHeaders.map(header => {
+                    const key = header.slice(1, -1);
+                    return cleanValue(row[key]);
+                });
+                
+                valueClauses.push(`(${values.join(', ')})`);
+                
+                if (valueClauses.length >= BATCH_SIZE || (i === data.length - 1 && valueClauses.length > 0)) {
+                    allSql += `INSERT INTO ${tableNameVal} (${userHeaders.join(', ')}) VALUES \n${valueClauses.join(',\n')};\n\n`;
+                    valueClauses = [];
+                }
+                if (i % 100 === 0 || i === data.length - 1) {
+                    updateProgress(10 + (i / data.length) * 90, `Generating SQL... (Row ${i + 1}/${data.length})`);
+                }
+            });
+            
+            sqlOutput.value = allSql;
+            sqlOutputSection.classList.remove('hidden');
+            logMessage(`✅ **Success:** Successfully generated SQL script for ${data.length} rows.`, 'success');
+            updateProgress(100, "Completed");
+        }
+        
+        function generateCreateTable(tableName, headers, dataTypes) {
+            const columns = headers.map((header, index) => {
+                return `  ${header} ${dataTypes[index]}`;
+            }).join(',\n');
+            
+            return `DROP TABLE IF EXISTS ${tableName};\nCREATE TABLE ${tableName} (\n${columns}\n);`;
+        }
+
+        function cleanValue(value) {
+            if (value === null || typeof value === 'undefined' || String(value).trim() === '') return 'NULL';
+            const escapedStr = String(value).trim().replace(/'/g, "''");
+            return `'${escapedStr}'`;
+        }
+
+        function copySqlToClipboard() {
+            if (!sqlOutput.value) return;
+            const textArea = document.createElement("textarea");
+            textArea.value = sqlOutput.value;
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                copySqlBtn.textContent = 'Copied!';
+                copySqlBtn.classList.replace('bg-green-500', 'bg-indigo-500');
+                copySqlBtn.classList.replace('hover:bg-green-600', 'hover:bg-indigo-600');
+                setTimeout(() => {
+                    copySqlBtn.textContent = 'Copy to Clipboard';
+                    copySqlBtn.classList.replace('bg-indigo-500', 'bg-green-500');
+                    copySqlBtn.classList.replace('hover:bg-indigo-600', 'hover:bg-green-600');
+                }, 2000);
+            } catch (err) {
+                logMessage('❌ **Error:** Could not copy text.', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+    </script>
+</body>
+</html>
